@@ -1,5 +1,6 @@
 package com.challenge.svakt.qantasairportdetails;
 
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -7,14 +8,11 @@ import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
-
 
 import com.android.volley.Request;
 import com.android.volley.Response;
@@ -22,15 +20,13 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
 import com.challenge.svakt.qantasairportdetails.model.DummyContent;
-import com.challenge.svakt.qantasairportdetails.model.QantasAirportData;
-//import com.challenge.svakt.qantasairportdetails.model.QantasAirportData;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.ArrayList;
 import java.util.List;
+
 
 /**
  * An activity representing a list of Airports. This activity
@@ -63,10 +59,16 @@ public class AirportListActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
         toolbar.setTitle(getTitle());
 
-        View recyclerView = findViewById(R.id.airport_list);
+        final ProgressDialog progress = new ProgressDialog(this);
+        progress.setTitle("Loading");
+        progress.setMessage("Wait while loading...");
+        progress.setCancelable(false); // disable dismiss by tapping outside of the dialog
+        progress.show();
+
+        final View recyclerView = findViewById(R.id.airport_list);
         assert recyclerView != null;
-            //Log.v("Inside If","Inside");
-            setupRecyclerView((RecyclerView) recyclerView);
+        //Log.v("Inside If","Inside");
+        setupRecyclerView((RecyclerView) recyclerView);
 
         if (findViewById(R.id.airport_detail_container) != null) {
             // The detail container view will be present only in the
@@ -78,7 +80,7 @@ public class AirportListActivity extends AppCompatActivity {
 
         // ***************JSON  REQUEST OBJECT ********************
 
-        final JsonObjectRequest jsonRequest = new JsonObjectRequest(Request.Method.GET, url, null, new Response.Listener<JSONObject>() {
+        final JsonObjectRequest jsonRequest = new JsonObjectRequest(Request.Method.GET, url,(String) null, new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject response) {
                 //Log.d("QAD","RES : " + response.toString());
@@ -119,8 +121,9 @@ public class AirportListActivity extends AppCompatActivity {
 
                         DummyContent.DummyItem airportData = new DummyContent.DummyItem(airport,countryName,airportDetails);
                         DummyContent.addItem(airportData);
-
                     }
+                    myAdapter.notifyDataSetChanged();
+                    progress.dismiss();
                 } catch (JSONException e) {
                     Log.v("QAD","Err :" + e.getLocalizedMessage());
                 }
@@ -138,11 +141,13 @@ public class AirportListActivity extends AppCompatActivity {
         Volley.newRequestQueue(this).add(jsonRequest);
     }
 
+    private SimpleItemRecyclerViewAdapter myAdapter;
+
     private void setupRecyclerView(@NonNull RecyclerView recyclerView) {
         //recyclerView.invalidate();
         //recyclerView.getAdapter().notifyDataSetChanged();
         //recyclerView.setAdapter(new SimpleItemRecyclerViewAdapter(DummyContent.ITEMS));
-        SimpleItemRecyclerViewAdapter myAdapter = new SimpleItemRecyclerViewAdapter(DummyContent.ITEMS);
+        myAdapter = new SimpleItemRecyclerViewAdapter(DummyContent.ITEMS);
         recyclerView.setAdapter(myAdapter);
     }
 
@@ -186,7 +191,6 @@ public class AirportListActivity extends AppCompatActivity {
                         Context context = v.getContext();
                         Intent intent = new Intent(context, AirportDetailActivity.class);
                         intent.putExtra(AirportDetailFragment.ARG_ITEM_ID, holder.mItem.id);
-
                         context.startActivity(intent);
                     }
                 }
