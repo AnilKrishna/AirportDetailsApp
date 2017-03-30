@@ -1,4 +1,8 @@
 <resources>
-    <string name="app_name">Qantas Airport Details</string>
+    <string name="app_name">Qantas Airports</string>
     <string name="title_airport_detail">Airport Detail</string>
+    <string name="timeout">Server Timeout</string>
+    <string name="no_internet">"No Internet! Loading Offline Data"</string>
+    <string name="http_error">HTTP Error</string>
+    <string name="generic_error">Something went wrong. Please try again later</string>
 </resources>

@@ -1,18 +1,28 @@
 package com.challenge.svakt.qantasairportdetails;
 
 import android.app.ProgressDialog;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
+import android.support.annotation.IdRes;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.DividerItemDecoration;
+import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.android.volley.Request;
 import com.android.volley.Response;
@@ -20,12 +30,16 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
 import com.challenge.svakt.qantasairportdetails.model.DummyContent;
+import com.challenge.svakt.qantasairportdetails.utils.ConnectivityStatus;
+import com.challenge.svakt.qantasairportdetails.utils.VolleyErrorHelper;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.List;
+
+import static android.R.id.progress;
 
 
 /**
@@ -46,9 +60,6 @@ public class AirportListActivity extends AppCompatActivity {
 
     final String url = "https://www.qantas.com.au/api/airports";
 
-    //private ArrayList<QantasAirportData> airportDataList = new ArrayList<>();
-    //private List<DummyItem> airportData = new ArrayList<DummyItem>();
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,16 +70,19 @@ public class AirportListActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
         toolbar.setTitle(getTitle());
 
-        final ProgressDialog progress = new ProgressDialog(this);
-        progress.setTitle("Loading");
-        progress.setMessage("Wait while loading...");
-        progress.setCancelable(false); // disable dismiss by tapping outside of the dialog
-        progress.show();
+
+        spinner = (ProgressBar)findViewById(R.id.progressBar);
+        spinner.setVisibility(View.VISIBLE);
+
+
+        AirportListActivity.this.registerReceiver(receiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+
 
         final View recyclerView = findViewById(R.id.airport_list);
         assert recyclerView != null;
         //Log.v("Inside If","Inside");
         setupRecyclerView((RecyclerView) recyclerView);
+
 
         if (findViewById(R.id.airport_detail_container) != null) {
             // The detail container view will be present only in the
@@ -78,75 +92,118 @@ public class AirportListActivity extends AppCompatActivity {
             mTwoPane = true;
         }
 
-        // ***************JSON  REQUEST OBJECT ********************
+
+
+        // GET API request call
 
         final JsonObjectRequest jsonRequest = new JsonObjectRequest(Request.Method.GET, url,(String) null, new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject response) {
                 //Log.d("QAD","RES : " + response.toString());
-                JSONArray airports = null;
 
-                try {
-                    airports = response.getJSONArray("airports");
-                    JSONObject airportObj = null;
-                    int totalAirports = airports.length();
-                    //Log.d("QAD","totalAirports : " + totalAirports);
-                    for(int i=0; i < totalAirports;i++){
-                        //Main Root element
-                        airportObj = airports.getJSONObject(i);
-                        //Log.d("QAD","airportObj : " + airportObj.toString());
-                        //Airport Name, Currency, timezone . Element of same level
-                        String airportName = airportObj.getString("display_name");
-                        String currency = airportObj.getString("currency_code");
-                        String timeZone = airportObj.getString("timezone");
+                PreferenceManager.getDefaultSharedPreferences( AirportListActivity.this).edit()
+                        .putString("airportData",response.toString()).apply();
+                prepareJSONData(response);
+                myAdapter.notifyDataSetChanged();
+                spinner.setVisibility(View.GONE);
 
-                        //Location
-                        JSONObject location = airportObj.getJSONObject("location");
-                        String latitude = location.getString("latitude");
-                        String longitude = location.getString("longitude");
-
-                        // Country
-                        JSONObject country = airportObj.getJSONObject("country");
-                        String countryName = country.getString("display_name");
-
-                        //String airportDetails = currency+", "+timeZone+", "+latitude+", "+longitude;
-                        String airport = airportName+" Airport";
-                        String airportDetails = "Timezone: " + timeZone+ "\n" + "Currency: " + currency + "\n" + "Location:" + latitude+","+longitude;
-
-                        //  Log.v("JSON : " , "AirportName :" + airportName + "--" + "CountryName ; " + countryName);
-
-                        //QantasAirportData airportData = new QantasAirportData(airportName,countryName,currency,timeZone,latitude,longitude);
-                        //ITEMS.add(airportData);
-                        //Log.d("QAD","RES in TRY: " + airports.toString());
-
-                        DummyContent.DummyItem airportData = new DummyContent.DummyItem(airport,countryName,airportDetails);
-                        DummyContent.addItem(airportData);
-                    }
-                    myAdapter.notifyDataSetChanged();
-                    progress.dismiss();
-                } catch (JSONException e) {
-                    Log.v("QAD","Err :" + e.getLocalizedMessage());
-                }
             }
         }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
-                Log.v("QAD","Err :" + error.getLocalizedMessage());
+                Log.v("QAD","Err :" + error);
+                String ErrorMessage = VolleyErrorHelper.getMessage(error,AirportListActivity.this);
+                Toast.makeText(AirportListActivity.this, ErrorMessage,
+                        Toast.LENGTH_LONG).show();
             }
         });
-
-
-// **********************JSON REQUEST OBJECT END ****************************************
 
         Volley.newRequestQueue(this).add(jsonRequest);
     }
 
+
+    private void prepareJSONData(JSONObject response) {
+        try{
+            JSONArray airports = null;
+            airports = response.getJSONArray("airports");
+            JSONObject airportObj = null;
+            int totalAirports = airports.length();
+            //Log.d("QAD","totalAirports : " + totalAirports);
+            for (int i = 0; i < totalAirports; i++) {
+                //Main Root element
+                airportObj = airports.getJSONObject(i);
+                //Log.d("QAD","airportObj : " + airportObj.toString());
+                //Airport Name, Currency, timezone . Element of same level
+                String airportName = airportObj.getString("display_name");
+                String currency = airportObj.getString("currency_code");
+                String timeZone = airportObj.getString("timezone");
+
+                //Location
+                JSONObject location = airportObj.getJSONObject("location");
+                String latitude = location.getString("latitude");
+                String longitude = location.getString("longitude");
+
+                // Country
+                JSONObject country = airportObj.getJSONObject("country");
+                String countryName = country.getString("display_name");
+
+                //String airportDetails = currency+", "+timeZone+", "+latitude+", "+longitude;
+                String airport = airportName + " Airport";
+                String airportDetails = "Timezone: " + timeZone + "\n" + "Currency: " + currency + "\n" + "Location:" + latitude + "," + longitude;
+
+                // Storing JSON for offline use
+
+                DummyContent.DummyItem airportData = new DummyContent.DummyItem(airport, countryName, airportDetails);
+                DummyContent.addItem(airportData);
+            }
+        }catch (JSONException e){
+            Log.v("QAD","Err :" + e.getLocalizedMessage());
+        }
+    }
+
+    // Check for the network
+    public BroadcastReceiver receiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if(!ConnectivityStatus.isConnected(AirportListActivity.this)){
+                // no connection
+                Log.v("QAD","Connection :" + "NOT CONNECTED");
+                String jsonObjectString = PreferenceManager.
+                        getDefaultSharedPreferences(AirportListActivity.this).getString("airportData","");
+                try{
+                    JSONObject airportJSONObject = new JSONObject(jsonObjectString);
+                    prepareJSONData(airportJSONObject);
+                }catch (JSONException e){
+                    Log.v("QAD","Err :" + e.getLocalizedMessage());
+                }
+                myAdapter.notifyDataSetChanged();
+                spinner.setVisibility(View.GONE);
+            }else {
+                // connected
+                Log.v("QAD","Connection :" + "CONNECTED");
+            }
+        }
+    };
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        AirportListActivity.this.registerReceiver(receiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        AirportListActivity.this.unregisterReceiver(receiver);
+
+    }
+
     private SimpleItemRecyclerViewAdapter myAdapter;
+    private ProgressBar spinner;
 
     private void setupRecyclerView(@NonNull RecyclerView recyclerView) {
-        //recyclerView.invalidate();
-        //recyclerView.getAdapter().notifyDataSetChanged();
-        //recyclerView.setAdapter(new SimpleItemRecyclerViewAdapter(DummyContent.ITEMS));
+        recyclerView.addItemDecoration(new DividerItemDecoration(AirportListActivity.this, DividerItemDecoration.VERTICAL));
         myAdapter = new SimpleItemRecyclerViewAdapter(DummyContent.ITEMS);
         recyclerView.setAdapter(myAdapter);
     }

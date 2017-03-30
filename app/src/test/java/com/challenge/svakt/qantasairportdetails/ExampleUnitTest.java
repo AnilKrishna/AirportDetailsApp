@@ -1,6 +1,16 @@
 package com.challenge.svakt.qantasairportdetails;
 
+import android.content.Context;
+import android.test.ServiceTestCase;
+
+import com.challenge.svakt.qantasairportdetails.utils.ConnectivityStatus;
+import com.challenge.svakt.qantasairportdetails.utils.VolleyErrorHelper;
+
+import org.junit.Before;
 import org.junit.Test;
+
+
+import java.lang.reflect.Method;
 
 import static org.junit.Assert.*;
 
@@ -14,4 +24,13 @@ public class ExampleUnitTest {
     public void addition_isCorrect() throws Exception {
         assertEquals(4, 2 + 2);
     }
+
+    @Before
+
+
+    @Test
+    public void someFunction() throws Exception{
+
+    }
 }
+
